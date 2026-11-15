@@ -65,10 +65,14 @@ export function diagnoseSignatureFailure(
   const diag: Record<string, unknown> = {
     sigLen: sig.length,
     sigHead: sig.slice(0, 10),
+    // Full values: the preflight body + its MAC contain no secrets, and
+    // they are what the offline variant search needs to find the match.
+    fullSig: sig,
     sigIsHex64: /^[0-9a-fA-F]{64}$/.test(sig),
     sigIsB64: candidate !== null,
     bodyLen: rawBody.length,
     bodyHead: rawBody.toString("utf8").slice(0, 120),
+    fullBody: rawBody.toString("utf8"),
     bytesKeyMatch: false,
     newlineBodyMatch: false,
     canonJsonMatch: false,

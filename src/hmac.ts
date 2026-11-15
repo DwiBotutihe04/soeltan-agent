@@ -58,6 +58,7 @@ export function diagnoseSignatureFailure(
   secret: string,
   rawBody: Buffer,
   headerValue: string | undefined | null,
+  prevSecret?: string,
 ): Record<string, unknown> {
   const sig = (headerValue ?? "").trim();
   const candidate = decodeCandidate(sig);
@@ -71,41 +72,73 @@ export function diagnoseSignatureFailure(
     bytesKeyMatch: false,
     newlineBodyMatch: false,
     canonJsonMatch: false,
+    sortedKeysJsonMatch: false,
+    sha512TruncMatch: false,
+    prevSecretMatch: false,
   };
+  const matches = (mac: Buffer): boolean =>
+    candidate !== null &&
+    candidate.length === mac.length &&
+    crypto.timingSafeEqual(candidate, mac);
   try {
     if (/^[0-9a-fA-F]{64}$/.test(secret)) {
       const mac = crypto
         .createHmac("sha256", Buffer.from(secret, "hex"))
         .update(rawBody)
         .digest();
-      diag.bytesKeyMatch =
-        candidate !== null &&
-        candidate.length === mac.length &&
-        crypto.timingSafeEqual(candidate, mac);
+      diag.bytesKeyMatch = matches(mac);
     }
   } catch {
     diag.bytesKeyMatch = false;
   }
   try {
     const mac = macBytes(secret, Buffer.concat([rawBody, Buffer.from("\n")]));
-    diag.newlineBodyMatch =
-      candidate !== null &&
-      candidate.length === mac.length &&
-      crypto.timingSafeEqual(candidate, mac);
+    diag.newlineBodyMatch = matches(mac);
   } catch {
     diag.newlineBodyMatch = false;
   }
   try {
     const parsed = JSON.parse(rawBody.toString("utf8")) as unknown;
     const mac = macBytes(secret, Buffer.from(JSON.stringify(parsed)));
-    diag.canonJsonMatch =
-      candidate !== null &&
-      candidate.length === mac.length &&
-      crypto.timingSafeEqual(candidate, mac);
+    diag.canonJsonMatch = matches(mac);
+    const sorted = JSON.stringify(sortKeys(parsed));
+    diag.sortedKeysJsonMatch = matches(
+      macBytes(secret, Buffer.from(sorted)),
+    );
   } catch {
     diag.canonJsonMatch = false;
+    diag.sortedKeysJsonMatch = false;
+  }
+  try {
+    const mac = crypto
+      .createHmac("sha512", secret)
+      .update(rawBody)
+      .digest()
+      .subarray(0, 32);
+    diag.sha512TruncMatch = matches(mac);
+  } catch {
+    diag.sha512TruncMatch = false;
+  }
+  try {
+    if (prevSecret) {
+      diag.prevSecretMatch = matches(macBytes(prevSecret, rawBody));
+    }
+  } catch {
+    diag.prevSecretMatch = false;
   }
   return diag;
+}
+
+function sortKeys(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(sortKeys);
+  if (v !== null && typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v as Record<string, unknown>).sort()) {
+      out[k] = sortKeys((v as Record<string, unknown>)[k]);
+    }
+    return out;
+  }
+  return v;
 }
 
 /**

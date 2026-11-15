@@ -73,7 +73,12 @@ export class AgentHandler {
         console.error(
           "[agent] sig-fail",
           JSON.stringify(
-            diagnoseSignatureFailure(this.cfg.hmacSecret, rawBody, signatureHeader),
+            diagnoseSignatureFailure(
+              this.cfg.hmacSecret,
+              rawBody,
+              signatureHeader,
+              this.cfg.hmacSecretPrev,
+            ),
           ),
         );
       } catch {

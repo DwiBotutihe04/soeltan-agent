@@ -8,6 +8,8 @@ import * as path from "path";
  */
 export interface Config {
   hmacSecret: string;
+  /** TEMPORARY diagnostic: previous (pre-rotation) HMAC secret, to test whether the platform still signs with it. Remove after diagnosis. */
+  hmacSecretPrev: string;
   kurierApiKey: string | null;
   kurierApiUrl: string;
   /** Registered gatekeeper vk_hash on zkVerify mainnet (from /build, /api/circuit-info). */
@@ -46,6 +48,7 @@ function defaultSeenStorePath(): string {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     hmacSecret: env.AGENT_GAMES_HMAC_SECRET ?? "",
+    hmacSecretPrev: env.AGENT_GAMES_HMAC_SECRET_PREV ?? "",
     kurierApiKey: env.KURIER_API_KEY ? env.KURIER_API_KEY : null,
     kurierApiUrl: env.KURIER_API_URL ?? "https://api.kurier.xyz/api/v1",
     gatekeeperVkHash:

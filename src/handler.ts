@@ -1,5 +1,5 @@
 import type { Config } from "./config";
-import { deriveSalt, diagnoseSignatureFailure, signBody, verifyBodySignature } from "./hmac";
+import { deriveSalt, signBody, verifyBodySignature } from "./hmac";
 import { buildCircuitInputs, evaluate, parseInput } from "./decision";
 import { Prover } from "./prover";
 import { submitProofAndPoll } from "./kurier";
@@ -67,23 +67,6 @@ export class AgentHandler {
 
     // 1. Authenticate the raw body BEFORE parsing.
     if (!verifyBodySignature(this.cfg.hmacSecret, rawBody, signatureHeader)) {
-      // TEMPORARY diagnostic (remove once preflight is green): log only the
-      // shape of the failed request — never the secret or a full MAC.
-      try {
-        console.error(
-          "[agent] sig-fail",
-          JSON.stringify(
-            diagnoseSignatureFailure(
-              this.cfg.hmacSecret,
-              rawBody,
-              signatureHeader,
-              this.cfg.hmacSecretPrev,
-            ),
-          ),
-        );
-      } catch {
-        /* never break the 401 path */
-      }
       return {
         status: 401,
         body: JSON.stringify({ error: "invalid_signature" }),

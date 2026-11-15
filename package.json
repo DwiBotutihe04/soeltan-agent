@@ -17,7 +17,7 @@
   "name": "soeltan-agent",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/fetch-circuits.js && tsc -p tsconfig.json",
     "dev": "tsx src/local-server.ts",
     "probe:signals": "node scripts/probe-signals.js",
     "start": "node dist/src/local-server.js",

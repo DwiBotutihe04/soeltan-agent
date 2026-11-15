@@ -49,6 +49,66 @@ export function verifyBodySignature(
 }
 
 /**
+ * TEMPORARY diagnostic for the live preflight 401 (remove once green).
+ * Logs only the SHAPE of a failed request — never the secret, never a full
+ * MAC. Returns booleans for the most plausible alternate schemes so the
+ * fix can be evidence-based instead of guesswork.
+ */
+export function diagnoseSignatureFailure(
+  secret: string,
+  rawBody: Buffer,
+  headerValue: string | undefined | null,
+): Record<string, unknown> {
+  const sig = (headerValue ?? "").trim();
+  const candidate = decodeCandidate(sig);
+  const diag: Record<string, unknown> = {
+    sigLen: sig.length,
+    sigHead: sig.slice(0, 10),
+    sigIsHex64: /^[0-9a-fA-F]{64}$/.test(sig),
+    sigIsB64: candidate !== null,
+    bodyLen: rawBody.length,
+    bodyHead: rawBody.toString("utf8").slice(0, 120),
+    bytesKeyMatch: false,
+    newlineBodyMatch: false,
+    canonJsonMatch: false,
+  };
+  try {
+    if (/^[0-9a-fA-F]{64}$/.test(secret)) {
+      const mac = crypto
+        .createHmac("sha256", Buffer.from(secret, "hex"))
+        .update(rawBody)
+        .digest();
+      diag.bytesKeyMatch =
+        candidate !== null &&
+        candidate.length === mac.length &&
+        crypto.timingSafeEqual(candidate, mac);
+    }
+  } catch {
+    diag.bytesKeyMatch = false;
+  }
+  try {
+    const mac = macBytes(secret, Buffer.concat([rawBody, Buffer.from("\n")]));
+    diag.newlineBodyMatch =
+      candidate !== null &&
+      candidate.length === mac.length &&
+      crypto.timingSafeEqual(candidate, mac);
+  } catch {
+    diag.newlineBodyMatch = false;
+  }
+  try {
+    const parsed = JSON.parse(rawBody.toString("utf8")) as unknown;
+    const mac = macBytes(secret, Buffer.from(JSON.stringify(parsed)));
+    diag.canonJsonMatch =
+      candidate !== null &&
+      candidate.length === mac.length &&
+      crypto.timingSafeEqual(candidate, mac);
+  } catch {
+    diag.canonJsonMatch = false;
+  }
+  return diag;
+}
+
+/**
  * Deterministic per-task salt for the gatekeeper circuit's private `salt`
  * input: HMAC(secret, "gatekeeper-salt:" + task_id) reduced mod the BN128
  * scalar field prime. Deterministic so a redelivered task reproduces the
